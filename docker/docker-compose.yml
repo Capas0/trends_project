@@ -1,0 +1,58 @@
+version: "3"
+
+services:
+  app:
+    image: trend_app
+    container_name: trend_app
+    depends_on:
+      - db
+      - rabbitmq
+    command: wait-for postgres:5432  -- python manage.py runserver 0.0.0.0:80
+    ports:
+      - "80:80"
+    volumes:
+      - ../Server:/usr/src/app
+      - scripts:/usr/scripts
+      - ../results:/usr/data
+    env_file: ./.env
+    hostname: app
+    restart: on-failure
+
+  db:
+    image: postgres:latest
+    container_name: trend_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - trend_postgres_data:/var/lib/postgresql/data
+    env_file: ./.env
+    hostname: postgres
+    restart: on-failure
+
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: trend_rabbitmq
+    ports:
+      - "5672:5672"
+    hostname: rabbitmq
+    restart: on-failure
+
+  celery_worker:
+    image: trend_app
+    container_name: trend_celery_worker
+    depends_on:
+      - app
+      - db
+      - rabbitmq
+    command: bash -c "wait-for rabbitmq:5672 && wait-for app:8000 -- celery -A app worker -l info"
+    volumes:
+      - ../Server:/usr/src/app
+      - ../results:/data
+      - scripts:/usr/scripts
+    env_file: ./.env
+    hostname: celery_worker
+    restart: on-failure
+
+volumes:
+  trend_postgres_data:
+  scripts:
